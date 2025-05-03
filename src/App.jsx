@@ -29,7 +29,7 @@ const handleLogin = async (credentials, setToken, setUser, setError, setLoading,
     console.log('Navigating after delay...');
     // --- END DIAGNOSTIC ---
 
-    navigate('/'); 
+    navigate('/dashboard'); 
   } catch (error) {
     const errorMessage = error.response?.data?.error || 'Login failed. Please check credentials.';
     console.error('Login failed:', errorMessage);
@@ -313,13 +313,18 @@ function DashboardPage({ user, token, onLogout }) {
   // --- Recording Controls ---
   const startRecording = () => {
     if (recognitionRef.current && !isRecording) {
-      console.log('Starting recording...');
-      recognitionRef.current.start();
-      setIsRecording(true);
-      console.log('Recording started');
+      try {
+        console.log('Starting recording...');
+        recognitionRef.current.start();
+        setIsRecording(true);
+        console.log('Recording started');
+      } catch (error) {
+        console.error('Error starting recording:', error);
+        setSaveError('Failed to start recording. Check microphone permissions.');
+      }
     } else {
-      console.error('Error starting recording:', error);
-      setSaveError('Failed to start recording. Check microphone permissions.'); // Use saveError for general messages
+      console.error('Error starting recording: Recognition not available or already recording');
+      setSaveError('Failed to start recording. Check microphone permissions.');
     }
   };
 
@@ -547,10 +552,7 @@ function DashboardPage({ user, token, onLogout }) {
                          {new Date(entry.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                        </span>
                        <div className="flex space-x-2 text-sm">
-                          {/* Edit button moved to main controls area */} 
-                          {/* {currentEntryId === entry.id && !isEditing &&
-                                <button onClick={(e) => { e.stopPropagation(); handleEdit(entry); }} className="hover:text-yellow-400"><FiEdit2 /></button>
-                            }*/} 
+                          <button onClick={(e) => { e.stopPropagation(); handleEdit(entry); }} className="hover:text-yellow-400"><FiEdit2 /></button>
                           <button onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }} className="hover:text-red-400"><FiTrash2 /></button>
                        </div>
                      </div>
