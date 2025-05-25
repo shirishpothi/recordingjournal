@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, useNavigate, Navigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
-import { FiMic, FiSave, FiTrash2, FiSquare, FiEdit2, FiFile, FiClock, FiLogOut, FiLoader, FiAlertCircle, FiHeadphones, FiChevronRight } from 'react-icons/fi';
+import { FiMic, FiSave, FiTrash2, FiSquare, FiEdit2, FiFile, FiClock, FiLogOut, FiLoader, FiAlertCircle, FiHeadphones, FiChevronRight, FiCheckCircle, FiAlertTriangle } from 'react-icons/fi';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 const api = axios.create({
@@ -23,11 +23,6 @@ const handleLogin = async (credentials, setToken, setUser, setError, setLoading,
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(userData));
     console.log('Login successful:', userData);
-
-    // --- DIAGNOSTIC: Add a small delay before navigating ---
-    await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay
-    console.log('Navigating after delay...');
-    // --- END DIAGNOSTIC ---
 
     navigate('/dashboard'); 
   } catch (error) {
@@ -222,9 +217,34 @@ function DashboardPage({ user, token, onLogout }) {
   const [isLoading, setIsLoading] = useState(false); // Loading state for API calls within dashboard
   const [fetchError, setFetchError] = useState(null); // Error state for fetching entries
   const [saveError, setSaveError] = useState(null); // Error state for save/update/delete
+  const [successMessage, setSuccessMessage] = useState(null); // State for success messages
+  const [warningMessage, setWarningMessage] = useState(null); // State for warning messages
+  const [speechRestartAttempts, setSpeechRestartAttempts] = useState(0); // For auto-restarting speech rec
   const recognitionRef = useRef(null);
   const textAreaRef = useRef(null);
   const navigate = useNavigate();
+
+  const MAX_SPEECH_RESTART_ATTEMPTS = 2; // Max times to auto-restart speech recognition
+
+  // --- Auto-clear success message ---
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3500); // Auto-clear after 3.5 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
+  // --- Auto-clear warning message ---
+  useEffect(() => {
+    if (warningMessage) {
+      const timer = setTimeout(() => {
+        setWarningMessage(null);
+      }, 4500); // Auto-clear after 4.5 seconds (slightly longer for warnings)
+      return () => clearTimeout(timer);
+    }
+  }, [warningMessage]);
 
   // --- Speech Recognition Setup ---
   useEffect(() => {
@@ -262,15 +282,34 @@ function DashboardPage({ user, token, onLogout }) {
     recog.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
       setSaveError(`Speech recognition error: ${event.error}`);
+      setSuccessMessage(null);
+      setWarningMessage(null);
       setIsRecording(false);
     };
 
     recog.onend = () => {
-      // Only log if it wasn't intentionally stopped
-      if (isRecording) {
-         console.log('Speech recognition service disconnected, attempting to restart');
-         // Optional: auto-restart if desired, but manual stop is safer
-         // if (isRecording) startRecording(); 
+      if (isRecording) { // Unexpected stop
+        const nextAttempt = speechRestartAttempts + 1;
+        setSpeechRestartAttempts(nextAttempt);
+
+        if (nextAttempt <= MAX_SPEECH_RESTART_ATTEMPTS) {
+          console.log(`Speech recognition disconnected, attempting to restart (attempt ${nextAttempt}/${MAX_SPEECH_RESTART_ATTEMPTS}).`);
+          // setIsRecording(true) is called within startRecording, no need to set it false here.
+          // startRecording() will also handle its own errors.
+          startRecording(); 
+        } else {
+          console.log(`Speech recognition disconnected, max restart attempts (${MAX_SPEECH_RESTART_ATTEMPTS}) reached.`);
+          setWarningMessage("Speech recognition stopped unexpectedly and could not be restarted. Please start it manually.");
+          setSuccessMessage(null);
+          setSaveError(null);
+          setIsRecording(false); // Now set recording to false as we've given up.
+          setSpeechRestartAttempts(0); // Reset for next manual start.
+        }
+      } else { // Expected stop
+        console.log('Speech recognition service ended (expected).');
+        // setIsRecording(false) should have already been called by stopRecording().
+        // Reset attempts on expected stop as well, for good measure.
+        setSpeechRestartAttempts(0);
       }
     };
 
@@ -314,23 +353,32 @@ function DashboardPage({ user, token, onLogout }) {
   const startRecording = () => {
     if (recognitionRef.current && !isRecording) {
       try {
-        console.log('Starting recording...');
+        console.log('Starting recording (manual or successful auto-restart)...');
+        setSpeechRestartAttempts(0); // Reset attempts on a successful manual/auto start
         recognitionRef.current.start();
         setIsRecording(true);
+        // Clear any previous "failed to start" errors or warnings from this component
+        setSaveError(null);
+        setWarningMessage(null);
         console.log('Recording started');
       } catch (error) {
         console.error('Error starting recording:', error);
         setSaveError('Failed to start recording. Check microphone permissions.');
+        setSuccessMessage(null);
+        setWarningMessage(null);
       }
     } else {
       console.error('Error starting recording: Recognition not available or already recording');
       setSaveError('Failed to start recording. Check microphone permissions.');
+      setSuccessMessage(null);
+      setWarningMessage(null);
     }
   };
 
   const stopRecording = () => {
     if (recognitionRef.current && isRecording) {
-      console.log('Stopping recording...');
+      console.log('Stopping recording (manual)...');
+      setSpeechRestartAttempts(0); // Reset attempts on manual stop
       recognitionRef.current.stop();
       setIsRecording(false);
       // Final transcript is already in the transcript state via onresult
@@ -349,7 +397,9 @@ function DashboardPage({ user, token, onLogout }) {
   const handleSave = async () => {
     if (!currentText.trim()) return; // Don't save empty entries
     setIsLoading(true);
+    setSuccessMessage(null);
     setSaveError(null);
+    setWarningMessage(null);
     try {
       const newEntryData = {
         text: currentText,
@@ -358,11 +408,16 @@ function DashboardPage({ user, token, onLogout }) {
       const response = await api.post('/entries', newEntryData);
       setEntries([response.data, ...entries].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))); // Add and re-sort
       handleNewEntry(); // Clear the form for a new entry
+      setSuccessMessage("Entry saved successfully!");
+      setSaveError(null); 
+      setWarningMessage(null);
       console.log('Entry saved:', response.data.id);
     } catch (error) {
       const errMsg = error.response?.data?.error || 'Failed to save entry.';
       console.error('Error saving entry:', errMsg);
       setSaveError(errMsg);
+      setSuccessMessage(null);
+      setWarningMessage(null);
     } finally {
       setIsLoading(false);
     }
@@ -379,7 +434,9 @@ function DashboardPage({ user, token, onLogout }) {
   const handleUpdate = async () => {
     if (!currentEntryId || !currentText.trim()) return;
     setIsLoading(true);
+    setSuccessMessage(null);
     setSaveError(null);
+    setWarningMessage(null);
     try {
       const updatedEntryData = {
         text: currentText,
@@ -388,11 +445,16 @@ function DashboardPage({ user, token, onLogout }) {
       const response = await api.put(`/entries/${currentEntryId}`, updatedEntryData);
       setEntries(entries.map(e => e.id === currentEntryId ? response.data : e).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))); // Update and re-sort
       handleNewEntry(); // Reset form after update
+      setSuccessMessage("Entry updated successfully!");
+      setSaveError(null);
+      setWarningMessage(null);
       console.log('Entry updated:', currentEntryId);
     } catch (error) {
       const errMsg = error.response?.data?.error || 'Failed to update entry.';
       console.error('Error updating entry:', errMsg);
       setSaveError(errMsg);
+      setSuccessMessage(null);
+      setWarningMessage(null);
     } finally {
       setIsLoading(false);
     }
@@ -401,18 +463,25 @@ function DashboardPage({ user, token, onLogout }) {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this entry?')) return;
     setIsLoading(true);
+    setSuccessMessage(null);
     setSaveError(null);
+    setWarningMessage(null);
     try {
       await api.delete(`/entries/${id}`);
       setEntries(entries.filter(e => e.id !== id)); // No need to sort after delete
       if (currentEntryId === id) {
         handleNewEntry(); // Clear form if the deleted entry was being viewed/edited
       }
+      setSuccessMessage("Entry deleted successfully!");
+      setSaveError(null);
+      setWarningMessage(null);
       console.log('Entry deleted:', id);
     } catch (error) {
       const errMsg = error.response?.data?.error || 'Failed to delete entry.';
       console.error('Error deleting entry:', errMsg);
       setSaveError(errMsg);
+      setSuccessMessage(null);
+      setWarningMessage(null);
     } finally {
       setIsLoading(false);
     }
@@ -428,11 +497,22 @@ function DashboardPage({ user, token, onLogout }) {
   };
 
   const handleNewEntry = () => {
+    // Confirmation dialog for clearing unsaved new entry
+    if (!isEditing && currentText.trim() !== '') {
+      if (!window.confirm("Are you sure you want to clear the current unsaved entry? This cannot be undone.")) {
+        return; // User cancelled, so exit without clearing
+      }
+    }
+
     if (isRecording) stopRecording();
-    console.log('Creating new entry space...');
+    console.log('Creating new entry space or cancelling edit...');
     setCurrentEntryId(null);
     setCurrentText('');
     setIsEditing(false);
+    // Clear any messages when starting a new entry or cancelling
+    setSuccessMessage(null);
+    setSaveError(null);
+    setWarningMessage(null);
     // Maybe start recording immediately?
     // startRecording();
   }
@@ -460,10 +540,25 @@ function DashboardPage({ user, token, onLogout }) {
         {/* Left Column: Editor/Recorder */} 
         <div className="md:col-span-2 bg-black/30 backdrop-blur-xl rounded-xl shadow-2xl border border-white/10 p-4 sm:p-6 flex flex-col">
           <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-purple-300 border-b border-purple-500/20 pb-2">{isEditing ? 'Edit Entry' : 'New Journal Entry'}</h2>
+          {/* Error Message Display */}
           {saveError && (
             <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-md text-red-300 flex items-center">
               <FiAlertCircle className="mr-2 flex-shrink-0" />
               <span>{saveError}</span>
+            </div>
+          )}
+          {/* Success Message Display */}
+          {successMessage && (
+            <div className="mb-4 p-3 bg-green-600/30 border border-green-500/40 rounded-md text-green-200 flex items-center">
+              <FiCheckCircle className="mr-2 flex-shrink-0" />
+              <span>{successMessage}</span>
+            </div>
+          )}
+          {/* Warning Message Display */}
+          {warningMessage && (
+            <div className="mb-4 p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-md text-yellow-300 flex items-center">
+              <FiAlertTriangle className="mr-2 flex-shrink-0" />
+              <span>{warningMessage}</span>
             </div>
           )}
           <textarea
@@ -471,7 +566,16 @@ function DashboardPage({ user, token, onLogout }) {
             value={currentText}
             onChange={(e) => setCurrentText(e.target.value)}
             placeholder={isRecording ? "Listening... speak clearly." : "Start typing or click the mic to record..."}
-            className="w-full h-48 sm:h-64 md:h-80 flex-grow p-3 sm:p-4 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-100 placeholder-gray-400 resize-none mb-4 text-sm sm:text-base"
+            className={`
+              w-full h-48 sm:h-64 md:h-80 flex-grow p-3 sm:p-4 rounded-lg bg-white/5 
+              text-gray-100 placeholder-gray-400 resize-none mb-4 text-sm sm:text-base
+              focus:outline-none focus:ring-2 focus:border-transparent
+              transition-colors duration-200 ease-in-out 
+              ${isRecording
+                ? 'border-red-500/70 focus:ring-red-500/70' // More prominent red
+                : 'border-white/10 focus:ring-purple-500'
+              }
+            `}
             disabled={isRecording}
           />
           <div className="flex flex-col sm:flex-row items-center justify-between space-y-3 sm:space-y-0 sm:space-x-4">
@@ -559,7 +663,11 @@ function DashboardPage({ user, token, onLogout }) {
                    </div>
                  ))
                ) : (
-                 <p className="text-gray-400 text-center italic mt-6 flex items-center justify-center">No journal entries found.</p>
+                <div className="flex-grow flex flex-col items-center justify-center text-center text-gray-400 p-4 mt-6">
+                  <FiFileText className="text-4xl text-gray-500 mb-3" /> 
+                  <p className="text-lg mb-1">No journal entries yet.</p>
+                  <p className="text-sm">Start by typing or recording your thoughts!</p>
+                </div>
                )}
              </div>
            )}
@@ -611,7 +719,40 @@ function LandingPage() {
           </div>
           <p className="text-sm text-gray-400">Already have an account? <Link to="/login" className="text-purple-400 hover:text-purple-300 underline">Log in</Link></p>
         </div>
-        <div className="md:w-1/2 max-w-md">
+
+        {/* Key Features Section - Placed below CTA, before the illustrative app window div */}
+        <div className="w-full md:w-auto mt-12 md:mt-16 px-4 md:px-0"> {/* Ensure it doesn't get too wide on large screens by itself but aligns with content flow */}
+          <div className="max-w-3xl mx-auto"> {/* Centering and max-width for the features section */}
+            <div className="flex flex-col sm:flex-row justify-around items-start gap-8 sm:gap-6 text-center sm:text-left">
+              {/* Feature 1 */}
+              <div className="flex flex-col items-center sm:items-start flex-1">
+                <FiMic className="text-4xl text-purple-400 mb-3" />
+                <h3 className="text-xl font-semibold text-gray-100 mb-2">Effortless Recording</h3>
+                <p className="text-base text-gray-300 leading-relaxed">
+                  Capture your thoughts instantly with our seamless voice-to-text technology. Just speak, and we'll handle the rest.
+                </p>
+              </div>
+              {/* Feature 2 */}
+              <div className="flex flex-col items-center sm:items-start flex-1">
+                <FiArchive className="text-4xl text-purple-400 mb-3" />
+                <h3 className="text-xl font-semibold text-gray-100 mb-2">Securely Stored</h3>
+                <p className="text-base text-gray-300 leading-relaxed">
+                  Your journal entries are encrypted and stored safely, accessible only by you. Privacy is our priority.
+                </p>
+              </div>
+              {/* Feature 3 */}
+              <div className="flex flex-col items-center sm:items-start flex-1">
+                <FiSearch className="text-4xl text-purple-400 mb-3" />
+                <h3 className="text-xl font-semibold text-gray-100 mb-2">Easy Search & Recall</h3>
+                <p className="text-base text-gray-300 leading-relaxed">
+                  Quickly find past entries with powerful search. Revisit your ideas and reflections anytime, anywhere.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="md:w-1/2 max-w-md"> {/* This is the existing illustrative app window div */}
           <div className="bg-black/30 backdrop-blur-lg rounded-xl p-6 border border-white/10 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">

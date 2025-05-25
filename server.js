@@ -235,7 +235,7 @@ app.post('/api/entries', verifyToken, async (req, res) => {
     const userEntries = allEntriesData[userId] || [];
 
     const newEntry = {
-      id: req.body.id || Date.now().toString(), // Use provided ID or generate one
+      id: uuidv4(), // Generate new ID using uuidv4
       text: req.body.text,
       timestamp: req.body.timestamp || new Date().toISOString(),
     };
