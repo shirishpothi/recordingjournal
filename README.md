@@ -61,3 +61,6 @@ MIT
 
 > [!WARNING]  
 > It is illegal to exploit any vulnerabilities in this program. Use this software at your own risk. The authors and contributors are not responsible for any damages or legal consequences resulting from misuse or exploitation of this program.
+
+---
+[![Star History Chart](https://api.star-history.com/svg?repos=shirishpothi/recordingjournal&type=Date)](https://star-history.com/#shirishpothi/recordingjournal)
