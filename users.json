@@ -8,5 +8,39 @@
     "userId": "24441c42-f2db-4273-9f8c-5971e0118370",
     "username": "samuel",
     "password": "$2b$10$uSE9AqYmkID/gHWOKepjVuX0zeXj9kVWGW6kRCPYG2zezEaB3nsFG"
+  },
+  "020efc34-fed7-4a6f-9848-ef778e205f63": {
+    "userId": "020efc34-fed7-4a6f-9848-ef778e205f63",
+    "username": "testuser",
+    "password": "$2b$10$IcNeufiMu.7DI7PphZm0.OjOdDL5o2.CPxvO.vDRf7ylMf6WzaBde"
+  },
+  "3ec85cb5-4c96-47b3-8cf2-c2c47ac6a09d": {
+    "userId": "3ec85cb5-4c96-47b3-8cf2-c2c47ac6a09d",
+    "username": "testuser2",
+    "password": "$2b$10$TIfEadDpmKV4Nqu.T1VWEeRf9jJDLqbDL3d1xVmA98n0KHDJHjFdO"
+  },
+  "893ee535-7e77-48e8-88db-7ef9d59abc80": {
+    "userId": "893ee535-7e77-48e8-88db-7ef9d59abc80",
+    "username": "finaltest",
+    "password": "$2b$10$I.t160UeaiUUnBMNz9PLZ.s8X2tt0/7qZ2.B1aYw061os.SV.gK4W"
+  },
+  "0abc656b-efc0-4c8c-b394-f39856da2518": {
+    "userId": "0abc656b-efc0-4c8c-b394-f39856da2518",
+    "username": "shirish2",
+    "password": "$2b$10$ImgVZapX9Shbx7wryKEMzuOPza3sG5R.AUzpptHx3LdlKA7mpsAyO"
+  },
+  "9473e75a-2f7a-4ed6-88ae-48db6493b5fc": {
+    "userId": "9473e75a-2f7a-4ed6-88ae-48db6493b5fc",
+    "username": "newuser",
+    "password": "$2b$10$UEiAVqlz1na9XIsNVanq6.8qC5VvHPCnJdgtFCIHOO1ugfGvbjqo6"
+  },
+  "e2a10430-0563-45cc-8333-f0fbf212cc4b": {
+    "userId": "e2a10430-0563-45cc-8333-f0fbf212cc4b",
+    "username": "test@example.com",
+    "email": "test@example.com",
+    "name": "Test User",
+    "googleId": "123456789",
+    "isGoogleAuth": true,
+    "createdAt": "2025-06-24T16:07:46.417Z"
   }
 }
